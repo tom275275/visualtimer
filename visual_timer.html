@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visual Timer</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        
+        .timer-container {
+            position: relative;
+            width: 300px;
+            height: 300px;
+            margin: 20px 0;
+        }
+        
+        .timer-circle {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            position: relative;
+            background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="stars" patternUnits="userSpaceOnUse" width="20" height="20"><rect fill="%23e6f3ff" width="20" height="20"/><circle fill="%23ffd700" cx="5" cy="5" r="2"/><circle fill="%23ffd700" cx="15" cy="15" r="1.5"/><circle fill="%23ffd700" cx="10" cy="18" r="1"/></pattern></defs><rect fill="url(%23stars)" width="100" height="100"/></svg>');
+            background-size: cover;
+            overflow: hidden;
+        }
+        
+        .timer-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: conic-gradient(from 270deg, #4CAF50 0deg, #4CAF50 360deg);
+            transition: background 0.1s ease;
+        }
+        
+
+        
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .time-inputs {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .time-input {
+            width: 60px;
+            padding: 8px;
+            font-size: 16px;
+            text-align: center;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+        }
+        
+        .buttons {
+            display: flex;
+            gap: 10px;
+        }
+        
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        .start-btn {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .start-btn:hover {
+            background: #45a049;
+        }
+        
+        .pause-btn {
+            background: #ff9800;
+            color: white;
+        }
+        
+        .pause-btn:hover {
+            background: #f57c00;
+        }
+        
+        .reset-btn {
+            background: #f44336;
+            color: white;
+        }
+        
+        .reset-btn:hover {
+            background: #da190b;
+        }
+        
+        .time-display {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 20px 0;
+            color: #333;
+        }
+        
+        .image-upload {
+            margin: 20px 0;
+        }
+        
+        .upload-input {
+            margin: 10px 0;
+        }
+        
+        .finished-message {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #ff4444;
+            color: white;
+            padding: 20px 40px;
+            border-radius: 10px;
+            font-size: 24px;
+            font-weight: bold;
+            display: none;
+            z-index: 100;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+    </style>
+</head>
+<body>
+    <h1>Visual Timer</h1>
+    
+    <div class="controls">
+        <div class="time-inputs">
+            <input type="number" class="time-input" id="minutes" value="5" min="0" max="59">
+            <span>minutes</span>
+            <input type="number" class="time-input" id="seconds" value="0" min="0" max="59">
+            <span>seconds</span>
+        </div>
+        
+        <div class="buttons">
+            <button class="start-btn" onclick="startTimer()">Start</button>
+            <button class="pause-btn" onclick="pauseTimer()">Pause</button>
+            <button class="reset-btn" onclick="resetTimer()">Reset</button>
+        </div>
+        
+        <div class="image-upload">
+            <label for="imageUpload">Upload background image:</label>
+            <input type="file" id="imageUpload" class="upload-input" accept="image/*" onchange="changeBackground(event)">
+        </div>
+    </div>
+    
+    <div class="timer-container">
+        <div class="timer-circle">
+            <div class="timer-overlay" id="overlay"></div>
+        </div>
+    </div>
+    
+    <div class="time-display" id="timeDisplay">5:00</div>
+    
+    <div class="finished-message" id="finishedMessage">
+        Time's Up! 🎉
+    </div>
+
+    <script>
+        let timerInterval;
+        let totalSeconds = 300; // 5 minutes default
+        let remainingSeconds = totalSeconds;
+        let isRunning = false;
+        let isPaused = false;
+        
+        function updateDisplay() {
+            const minutes = Math.floor(remainingSeconds / 60);
+            const seconds = remainingSeconds % 60;
+            document.getElementById('timeDisplay').textContent = 
+                `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
+        
+        function updateVisual() {
+            const progress = (totalSeconds - remainingSeconds) / totalSeconds;
+            const degrees = progress * 360;
+            
+            // Calculate color transition (last 25% of time)
+            const redTransitionStart = 0.75; // Start turning red at 75% complete
+            let overlayColor = '#4CAF50'; // Green
+            
+            if (progress >= redTransitionStart) {
+                const redProgress = (progress - redTransitionStart) / (1 - redTransitionStart);
+                const red = Math.round(255 * redProgress + 76 * (1 - redProgress));
+                const green = Math.round(175 * (1 - redProgress));
+                overlayColor = `rgb(${red}, ${green}, 80)`;
+            }
+            
+            // Create conic gradient that reveals the background image
+            const revealedDegrees = degrees;
+            const hiddenDegrees = 360 - degrees;
+            
+            document.getElementById('overlay').style.background = 
+                `conic-gradient(from ${degrees}deg, ${overlayColor} 0deg, ${overlayColor} ${hiddenDegrees}deg, transparent ${hiddenDegrees}deg)`;
+        }
+        
+        function startTimer() {
+            if (!isRunning && !isPaused) {
+                // Starting fresh timer
+                const minutes = parseInt(document.getElementById('minutes').value) || 0;
+                const seconds = parseInt(document.getElementById('seconds').value) || 0;
+                totalSeconds = minutes * 60 + seconds;
+                remainingSeconds = totalSeconds;
+            }
+            
+            if (remainingSeconds <= 0) return;
+            
+            isRunning = true;
+            isPaused = false;
+            
+            timerInterval = setInterval(() => {
+                remainingSeconds--;
+                updateDisplay();
+                updateVisual();
+                
+                if (remainingSeconds <= 0) {
+                    clearInterval(timerInterval);
+                    isRunning = false;
+                    document.getElementById('finishedMessage').style.display = 'block';
+                    
+                    // Hide message after 3 seconds
+                    setTimeout(() => {
+                        document.getElementById('finishedMessage').style.display = 'none';
+                    }, 3000);
+                }
+            }, 1000);
+        }
+        
+        function pauseTimer() {
+            if (isRunning) {
+                clearInterval(timerInterval);
+                isRunning = false;
+                isPaused = true;
+            }
+        }
+        
+        function resetTimer() {
+            clearInterval(timerInterval);
+            isRunning = false;
+            isPaused = false;
+            
+            const minutes = parseInt(document.getElementById('minutes').value) || 0;
+            const seconds = parseInt(document.getElementById('seconds').value) || 0;
+            totalSeconds = minutes * 60 + seconds;
+            remainingSeconds = totalSeconds;
+            
+            updateDisplay();
+            updateVisual();
+            
+            // Reset visual state
+            document.getElementById('overlay').style.background = 
+                'conic-gradient(from 0deg, #4CAF50 0deg, #4CAF50 360deg)';
+        }
+        
+        function changeBackground(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.querySelector('.timer-circle').style.backgroundImage = 
+                        `url(${e.target.result})`;
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+        
+        // Initialize display
+        updateDisplay();
+        updateVisual();
+    </script>
+</body>
+</html>
